@@ -19,6 +19,9 @@ int addr_get_subnet_range(const char *str, __be32 *begin, __be32 *end)
 	tmp_end = ip + sizeof(ip);
 	for (i = 0; str[i]; i++) {
 		if ('/' == str[i]) {
+			if (tmp_end == mask + sizeof(mask))
+				return -1;
+
 			tmp     = mask;
 			tmp_end = mask + sizeof(mask);
 
