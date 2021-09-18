@@ -1,29 +1,30 @@
 #include "ping.h"
 #include <arpa/inet.h>
 
-int addr_get_subnet_range(const char *str, __be32 *begin, __be32 *end)
+int addr_sep_subnet_or_range(
+	const char *str,
+	char        sep,
+	char       *part1,
+	int         part1_len,
+	char       *part2,
+	int         part2_len)
 {
-	char   ip[16];
-	char   mask[3];
-	char  *tmp;
-	char  *tmp_end;
-	int    prefix_len;
-	__be32 m;
+	char *tmp;
+	char *tmp_end;
+	int   i;
 
-	int i;
+	bzero(part1, part1_len);
+	bzero(part2, part2_len);
 
-	bzero(ip, sizeof(ip));
-	bzero(mask, sizeof(mask));
-
-	tmp     = ip;
-	tmp_end = ip + sizeof(ip);
+	tmp     = part1;
+	tmp_end = part1 + part1_len;
 	for (i = 0; str[i]; i++) {
-		if ('/' == str[i]) {
-			if (tmp_end == mask + sizeof(mask))
+		if (sep == str[i]) {
+			if (tmp_end == part2 + part2_len)
 				return -1;
 
-			tmp     = mask;
-			tmp_end = mask + sizeof(mask);
+			tmp     = part2;
+			tmp_end = part2 + part2_len;
 
 			continue;
 		}
@@ -37,6 +38,20 @@ int addr_get_subnet_range(const char *str, __be32 *begin, __be32 *end)
 		*(tmp++) = str[i];
 	}
 
+	return 0;
+}
+
+int addr_get_subnet_range(const char *str, __be32 *begin, __be32 *end)
+{
+	char   ip[16];
+	char   mask[3];
+	int    prefix_len;
+	__be32 m;
+
+	if (-1 == addr_sep_subnet_or_range(str, '/', ip, sizeof(ip),
+									   mask, sizeof(mask)))
+		return -1;
+
 	if (-1 == inet_pton(AF_INET, ip, begin))
 		return -1;
 
@@ -47,6 +62,25 @@ int addr_get_subnet_range(const char *str, __be32 *begin, __be32 *end)
 	m = htonl(~((1 << (32 - prefix_len)) - 1));
 	*begin = *begin & m;
 	*end   = (~m) | (*begin);
+
+	return 0;
+}
+
+int addr_get_range_range(const char *str, __be32 *begin, __be32 *end)
+{
+	char   ip1[16];
+	char   ip2[16];
+
+	if (-1 == addr_sep_subnet_or_range(str, '-', ip1, sizeof(ip1),
+									   ip2, sizeof(ip2)))
+		return -1;
+
+	if (-1 == inet_pton(AF_INET, ip1, begin)
+		|| -1 == inet_pton(AF_INET, ip2, end))
+		return -1;
+
+	if (ntohl(*begin) > ntohl(*end))
+		return -1;
 
 	return 0;
 }
