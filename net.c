@@ -72,7 +72,6 @@ int net_send_ip(int fd, struct sockaddr_in *dst, unsigned char *content, int len
 	}
 
 	return 0;
-
 }
 
 __sum16 net_calc_checksum(uint8_t *buf, int len)

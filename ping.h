@@ -58,7 +58,6 @@ typedef struct icmp_echo_msg {
 } __attribute__((__packed__)) icmp_echo_msg_t;
 
 typedef struct target {
-	char               ip_str[16];
 	struct sockaddr_in ip;
 	int                remain_pkt;
 	__be16             id;
@@ -70,10 +69,11 @@ typedef struct target {
 typedef struct target_set {
 	int                 num;
 	int                 remain_pkt;
+	int                 waiting_target_num;
 	unsigned char      *content;
 	int                 content_len;
 	struct sockaddr_in  src;
 	target_t            targets[0];
 } target_set_t;
 
-#endif
+#endif /* _PING_H_ */

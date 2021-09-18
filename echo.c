@@ -6,6 +6,8 @@
 
 #define ICMP_ECHO_DEFAULT_REQUEST_CONTENT "hello world"
 
+int timeout = 5;
+
 extern int net_create_raw_socket(int buf_size, int allow_broadcast);
 extern int net_send_icmp(
 	int                 fd,
@@ -23,11 +25,12 @@ target_set_t *echo_create_target_set(char **ip_array, int ip_array_len, int pkt_
 	target_t     *target;
 	int           i;
 
-	set              = malloc(sizeof(*set) + sizeof(target_t) * ip_array_len);
-	set->num         = 0;
-	set->remain_pkt  = 0;
-	set->content     = NULL;
-	set->content_len = 0;
+	set                     = malloc(sizeof(*set) + sizeof(target_t) * ip_array_len);
+	set->num                = 0;
+	set->remain_pkt         = 0;
+	set->content            = NULL;
+	set->content_len        = 0;
+	set->waiting_target_num = 0;
 
 	if (0 == inet_pton(AF_INET, "192.168.24.250", &set->src.sin_addr.s_addr)) {
 		perror("inet_pton");
@@ -70,11 +73,13 @@ int echo_request(
 	int                 content_len)
 {
 	if (target->remain_pkt) {
-		net_send_icmp(fd, src, &target->ip, target->id, target->seq++,
+		net_send_icmp(fd, src, &target->ip,
+					  target->id, target->seq,
 					  content, content_len);
 		target->req_time    = time(NULL);
 		target->waiting_rsp = 1;
 		target->remain_pkt--;
+		target->seq = htons(ntohs(target->seq) + 1);
 
 		return 1;
 	}
@@ -101,15 +106,42 @@ void echo_rcv_response(int fd, target_set_t *targets)
 
 		return;
 	}
+
 	target = &targets->targets[ntohs(rsp->identifier)];
+	if (rsp->sequence != htons(ntohs(target->seq) - 1)) {
+		fprintf(stderr, "old seq %d", ntohs(rsp->sequence));
+
+		return;
+	}
+
 	target->waiting_rsp = 0;
+
+	targets->waiting_target_num--;
 
 	printf("From %d.%d.%d.%d icmp_seq=%d\n",
 		   ((unsigned char *)(&ip_h->saddr))[0],
 		   ((unsigned char *)(&ip_h->saddr))[1],
 		   ((unsigned char *)(&ip_h->saddr))[2],
 		   ((unsigned char *)(&ip_h->saddr))[3],
-		   rsp->sequence);
+		   ntohs(rsp->sequence));
+}
+
+void echo_check_timeout(target_set_t *targets, target_t *target)
+{
+	time_t now;
+
+	now = time(NULL);
+	if (target->waiting_rsp && target->req_time + timeout < now) {
+		target->waiting_rsp = 0;
+		targets->waiting_target_num--;
+
+		printf("Ping %d.%d.%d.%d icmp_seq=%d timeout\n",
+			   ((unsigned char *)(&target->ip.sin_addr.s_addr))[0],
+			   ((unsigned char *)(&target->ip.sin_addr.s_addr))[1],
+			   ((unsigned char *)(&target->ip.sin_addr.s_addr))[2],
+			   ((unsigned char *)(&target->ip.sin_addr.s_addr))[3],
+			   target->seq - 1);
+	}
 }
 
 void echo(target_set_t *targets)
@@ -127,7 +159,7 @@ void echo(target_set_t *targets)
 		return;
 
 	target_cur = 0;
-	while(targets->remain_pkt) {
+	while(targets->remain_pkt || targets->waiting_target_num) {
 		FD_ZERO(&rfds);
 		FD_SET(fd, &rfds);
 		FD_ZERO(&wfds);
@@ -150,11 +182,13 @@ void echo(target_set_t *targets)
 					&& echo_request(fd, &targets->src, target,
 								 targets->content, targets->content_len)) {
 					targets->remain_pkt--;
+					targets->waiting_target_num++;
 				}
 			}
 		} else {
 			return;
 		}
+		echo_check_timeout(targets, target);
 
 		if (++target_cur == targets->num)
 			target_cur = 0;
