@@ -140,7 +140,7 @@ void echo_check_timeout(target_set_t *targets, target_t *target)
 			   ((unsigned char *)(&target->ip.sin_addr.s_addr))[1],
 			   ((unsigned char *)(&target->ip.sin_addr.s_addr))[2],
 			   ((unsigned char *)(&target->ip.sin_addr.s_addr))[3],
-			   target->seq - 1);
+			   ntohs(target->seq) - 1);
 	}
 }
 
