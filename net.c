@@ -44,8 +44,8 @@ int net_create_raw_socket(int buf_size, int allow_broadcast)
 	}
 
 	ip_hdrincl = 1;
-	if (0 <setsockopt(fd, IPPROTO_IP, IP_HDRINCL, &ip_hdrincl,
-					  sizeof(ip_hdrincl))) {
+	if (0 < setsockopt(fd, IPPROTO_IP, IP_HDRINCL, &ip_hdrincl,
+					   sizeof(ip_hdrincl))) {
 		perror("set ip hdrincl");
 
 		goto ERROR;
