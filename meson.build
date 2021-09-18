@@ -8,10 +8,12 @@ main_src      = ping_many_src + ['main.c']
 
 executable('ping_many', main_src)
 
-add_languages('cpp')
 gtest_dep = dependency('gtest', main : true, required : false)
+if gtest_dep.found()
+   add_languages('cpp')
 
-test_src = ping_many_src + ['test.cc']
-e = executable('testprog', test_src, dependencies : gtest_dep)
+   test_src = ping_many_src + ['test.cc']
+   e = executable('testprog', test_src, dependencies : gtest_dep)
 
-test('gtest test', e)
+   test('gtest test', e)
+endif
